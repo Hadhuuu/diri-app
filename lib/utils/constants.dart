@@ -31,5 +31,5 @@ class AppColors {
 }
 
 class AppUrls {
-  static const String baseUrl = 'http://192.168.123.212:8000/api'; 
+  static const String baseUrl = 'https://diri-backend-production.up.railway.app/api'; 
 }

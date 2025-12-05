@@ -8,7 +8,6 @@ import '../providers/auth_provider.dart';
 import '../providers/journal_provider.dart';
 import '../utils/constants.dart';
 import '../widgets/app_logo.dart';
-import '../models/journal_model.dart';
 import 'mood_selector_screen.dart';
 import 'journal_detail_screen.dart';
 
