@@ -4,7 +4,9 @@ class Mood {
   final String colorCode;
   final String iconName;
 
+
   Mood({required this.id, required this.name, required this.colorCode, required this.iconName});
+
 
   factory Mood.fromJson(Map<String, dynamic> json) {
     return Mood(
@@ -16,6 +18,7 @@ class Mood {
   }
 }
 
+
 class Journal {
   final int id;
   final String content;
@@ -23,28 +26,33 @@ class Journal {
   final Mood mood;
   final String? imageUrl;
   final String? musicLink;
-  final String? voiceUrl; // Pastikan ini ada
+  final String? voiceUrl;
+  final bool isPinned;
+
 
   Journal({
-    required this.id, 
-    required this.content, 
-    required this.date, 
+    required this.id,
+    required this.content,
+    required this.date,
     required this.mood,
     this.imageUrl,
     this.musicLink,
     this.voiceUrl,
+    this.isPinned = false,
   });
+
 
   factory Journal.fromJson(Map<String, dynamic> json) {
     return Journal(
       id: json['id'],
       // Pakai '?? ""' untuk jaga-jaga kalau null biar ga crash
-      content: json['content'] ?? '', 
+      content: json['content'] ?? '',
       date: json['date'],
       mood: Mood.fromJson(json['mood']),
-      imageUrl: json['image_url'], 
+      imageUrl: json['image_url'],
       musicLink: json['music_link'],
-      voiceUrl: json['voice_url'], // Pastikan backend kirim key ini
+      voiceUrl: json['voice_url'],
+      isPinned: json['is_pinned'] == 1 || json['is_pinned'] == true,
     );
   }
 }
