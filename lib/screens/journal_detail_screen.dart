@@ -7,6 +7,7 @@ import '../models/journal_model.dart';
 import '../utils/constants.dart';
 import '../providers/journal_provider.dart';
 import 'journal_editor_screen.dart';
+import '../widgets/journal_audio_player.dart';
 
 class JournalDetailScreen extends StatelessWidget {
   final int journalId; 
@@ -207,22 +208,13 @@ class JournalDetailScreen extends StatelessWidget {
 
                       // PLAYER SUARA
                       if (journal.voiceUrl != null)
-                        InkWell(
-                          onTap: () => _launchURL(context, journal!.voiceUrl!), 
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 24),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(color: theme.cardTheme.color, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.primary.withOpacity(0.3))),
-                            child: Row(
-                              children: [
-                                CircleAvatar(backgroundColor: AppColors.primary, child: const Icon(Icons.play_arrow_rounded, color: Colors.white)),
-                                const SizedBox(width: 16),
-                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Rekaman Suara", style: TextStyle(color: textColor, fontWeight: FontWeight.bold)), Text("Klik untuk memutar", style: TextStyle(color: subTextColor, fontSize: 12))])),
-                                Icon(Icons.audiotrack_rounded, color: AppColors.primary, size: 24),
-                              ],
-                            ),
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: JournalAudioPlayer(
+                          url: journal.voiceUrl!,
+                          isDark: isDark, // Kirim status tema biar warnanya cocok
                         ),
+                      ),
 
                       // --- JUDUL (BARIS 1) ---
                       if (titleText.isNotEmpty) ...[
