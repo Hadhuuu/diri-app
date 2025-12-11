@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/journal_provider.dart';
 import '../models/journal_model.dart';
 import '../utils/constants.dart';
-import 'journal_editor_screen.dart'; 
+import 'journal_editor_screen.dart';
 
 class MoodSelectorScreen extends StatefulWidget {
   const MoodSelectorScreen({super.key});
@@ -14,29 +14,13 @@ class MoodSelectorScreen extends StatefulWidget {
 }
 
 class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
-  List<Mood> _moods = [];
-  bool _isLoading = true;
-
+  
   @override
   void initState() {
     super.initState();
-    _loadMoods();
-  }
-
-  void _loadMoods() async {
-    try {
-      final service = Provider.of<JournalProvider>(context, listen: false).service; 
-      final moods = await service.getMoods();
-      setState(() {
-        _moods = moods;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-      }
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<JournalProvider>(context, listen: false).fetchMoods();
+    });
   }
 
   Color _parseColor(String hexCode) {
@@ -47,130 +31,120 @@ class _MoodSelectorScreenState extends State<MoodSelectorScreen> {
     }
   }
 
-  // LOGIKA ICON MOOD (Biar ga bunder doang)
-  IconData _getMoodIcon(String iconName) {
-    switch (iconName.toLowerCase()) {
-      case 'happy': return Icons.sentiment_very_satisfied_rounded; // Senyum Lebar
-      case 'sad': return Icons.water_drop_rounded; // Air mata / Hujan
-      case 'angry': return Icons.flash_on_rounded; // Petir / Marah
-      case 'anxious': return Icons.cyclone_rounded; // Pikiran ruwet / Spiral
-      case 'neutral': return Icons.sentiment_neutral_rounded; // Datar
-      case 'excited': return Icons.auto_awesome_rounded; // Bintang / Semangat
-      default: return Icons.circle; // Fallback
-    }
+  // --- LOGIKA ICON YANG LEBIH CANTIK ---
+  IconData _getMoodIcon(String moodName) {
+    final name = moodName.toLowerCase();
+    // Mapping yang lebih akurat dan ekspresif
+    if (name.contains('senang') || name.contains('bahagia') || name.contains('happy')) return Icons.sentiment_very_satisfied_rounded;
+    if (name.contains('semangat') || name.contains('excited')) return Icons.rocket_launch_rounded;
+    if (name.contains('biasa') || name.contains('neutral') || name.contains('okay')) return Icons.sentiment_neutral_rounded;
+    if (name.contains('sedih') || name.contains('sad') || name.contains('kecewa')) return Icons.sentiment_dissatisfied_rounded;
+    if (name.contains('marah') || name.contains('angry')) return Icons.mood_bad_rounded;
+    if (name.contains('takut') || name.contains('cemas') || name.contains('anxious')) return Icons.sick_rounded;
+    if (name.contains('lelah') || name.contains('tired')) return Icons.bedtime_rounded;
+    if (name.contains('bersyukur') || name.contains('grateful')) return Icons.volunteer_activism_rounded;
+    
+    // Default fallback
+    return Icons.face_rounded;
   }
 
   @override
   Widget build(BuildContext context) {
-    // --- VAR DINAMIS ---
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textColor = theme.colorScheme.onSurface;
-    
+
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor, // Fix Bocor
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text("Check-in"),
+        title: Text(
+          "Apa kabar harimu?", 
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface)
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
-        foregroundColor: textColor, // Fix Bocor
+        elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.close, color: textColor),
+          icon: Icon(Icons.close, color: theme.colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Bagaimana perasaanmu\nsaat ini?",
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: textColor, // Fix Bocor
-              ),
-            ),
-            const SizedBox(height: 32),
-            
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator(color: AppColors.primary))
-            else
-              Expanded(
-                child: GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, 
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 1.1, // Sedikit lebih kotak biar icon muat
-                  ),
-                  itemCount: _moods.length,
-                  itemBuilder: (context, index) {
-                    final mood = _moods[index];
-                    final color = _parseColor(mood.colorCode);
-                    final iconData = _getMoodIcon(mood.iconName);
+      body: Consumer<JournalProvider>(
+        builder: (context, provider, child) {
+          if (provider.moods.isEmpty) {
+             if (provider.isOffline) {
+               return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.wifi_off_rounded, size: 50, color: Colors.grey), SizedBox(height: 10), Text("Data Mood belum tersedia offline.", style: TextStyle(color: Colors.grey))]));
+             }
+             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
 
-                    return InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => JournalEditorScreen(mood: mood),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
+          return GridView.builder(
+            padding: const EdgeInsets.all(24),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.0, // Sedikit lebih kotak biar icon lega
+            ),
+            itemCount: provider.moods.length,
+            itemBuilder: (context, index) {
+              final mood = provider.moods[index];
+              final color = _parseColor(mood.colorCode);
+
+              return InkWell(
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => JournalEditorScreen(mood: mood),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(24),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.cardTheme.color,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade100, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.15),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      )
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Lingkaran Icon yang Besar & Jelas
+                      Container(
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          // Background ikut tema card (Putih/Abu)
-                          color: theme.cardTheme.color, 
-                          borderRadius: BorderRadius.circular(24),
-                          // Border tipis warna mood biar manis
-                          border: Border.all(color: color.withOpacity(0.3), width: 2),
-                          boxShadow: [
-                            if (!isDark) // Shadow halus cuma di light mode
-                              BoxShadow(
-                                color: color.withOpacity(0.1),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              )
-                          ],
+                          color: color.withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Lingkaran Background Icon
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: color.withOpacity(0.2), // Warna mood transparan
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                iconData, 
-                                color: color, // Icon warna mood solid
-                                size: 32,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              mood.name,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: textColor, // Text ikut tema
-                              ),
-                            ),
-                          ],
+                        child: Icon(
+                          _getMoodIcon(mood.name), 
+                          size: 40, // Icon Besar
+                          color: color,
                         ),
                       ),
-                    );
-                  },
+                      const SizedBox(height: 16),
+                      Text(
+                        mood.name,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
-        ),
+              );
+            },
+          );
+        },
       ),
     );
   }

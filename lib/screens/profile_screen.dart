@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart'; 
+import '../providers/journal_provider.dart'; // Import buat cek offline
 import '../utils/constants.dart';
 import 'edit_profile_screen.dart'; 
-import '../services/biometric_service.dart'; // Import Service Baru
+import '../services/biometric_service.dart';
 
-class ProfileScreen extends StatefulWidget { // Ubah jadi Stateful
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
@@ -30,15 +31,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _toggleBiometric(bool value) async {
-    // Kalau mau nyalain, harus scan jari dulu sebagai verifikasi
     if (value) {
       final success = await _biometricService.authenticate();
       if (!success) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Verifikasi gagal.")));
-        return; // Gagal scan, jangan nyalain
+        return; 
       }
     }
-    
     await _biometricService.setBiometricEnabled(value);
     setState(() => _isBiometricActive = value);
   }
@@ -60,8 +59,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           children: [
             const SizedBox(height: 60), 
-            
-            // AVATAR (Sama kayak sebelumnya)
             Container(
               width: 120, height: 120,
               decoration: BoxDecoration(
@@ -81,16 +78,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(user?.email ?? "email@diri.id", style: GoogleFonts.plusJakartaSans(fontSize: 14, color: theme.textTheme.bodyMedium?.color)),
             const SizedBox(height: 40),
 
-            // MENU OPTIONS
             Container(
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
-              ),
+              decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20), border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200)),
               child: Column(
                 children: [
-                  // MODE MALAM
                   SwitchListTile(
                     title: Text("Mode Malam", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500, color: textColor)),
                     secondary: _buildIconBox(Icons.dark_mode_rounded, isDark),
@@ -98,36 +89,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     activeColor: AppColors.primary,
                     onChanged: (val) => themeProvider.toggleTheme(),
                   ),
-                  
                   _buildDivider(isDark),
                   
-                  // EDIT PROFIL
+                  // --- SATPAM OFFLINE EDIT PROFIL ---
                   _buildMenuItem(
                     icon: Icons.person_outline_rounded, 
                     title: "Edit Profil",
                     textColor: textColor,
                     isDark: isDark,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen())),
+                    onTap: () {
+                      final isOffline = Provider.of<JournalProvider>(context, listen: false).isOffline;
+                      if (isOffline) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Butuh internet untuk edit profil 🙏")));
+                        return;
+                      }
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen()));
+                    },
                   ),
                   
                   _buildDivider(isDark),
-                  
-                  // --- KUNCI BIOMETRIK (SEKARANG AKTIF) ---
                   SwitchListTile(
                     title: Text("Kunci Aplikasi", style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500, color: textColor)),
                     subtitle: Text("Butuh sidik jari saat dibuka", style: TextStyle(fontSize: 10, color: theme.textTheme.bodyMedium?.color)),
                     secondary: _buildIconBox(Icons.fingerprint_rounded, isDark),
                     value: _isBiometricActive,
                     activeColor: AppColors.primary,
-                    onChanged: _toggleBiometric, // <--- LOGIC NYALA/MATI
+                    onChanged: _toggleBiometric, 
                   ),
                 ],
               ),
             ),
-            
             const SizedBox(height: 20),
-            
-            // LOGOUT
             Container(
               decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(20), border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200)),
               child: _buildMenuItem(icon: Icons.logout_rounded, title: "Keluar Aplikasi", textColor: AppColors.error, iconColor: AppColors.error, isDark: isDark, 
@@ -140,24 +132,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildIconBox(IconData icon, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: isDark ? Colors.black26 : Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
-      child: Icon(icon, color: isDark ? Colors.white : Colors.grey, size: 20),
-    );
-  }
-
-  Widget _buildMenuItem({required IconData icon, required String title, required VoidCallback onTap, Color? textColor, Color? iconColor, required bool isDark}) {
-    return ListTile(
-      onTap: onTap,
-      leading: _buildIconBox(icon, isDark), // Reuse widget icon box biar rapi
-      title: Text(title, style: GoogleFonts.plusJakartaSans(color: textColor, fontWeight: FontWeight.w500)),
-      trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white24 : Colors.grey.shade300),
-    );
-  }
-
-  Widget _buildDivider(bool isDark) {
-    return Divider(height: 1, color: isDark ? Colors.white10 : Colors.grey.shade200, indent: 60, endIndent: 20);
-  }
+  Widget _buildIconBox(IconData icon, bool isDark) { return Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: isDark ? Colors.black26 : Colors.grey.shade100, borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: isDark ? Colors.white : Colors.grey, size: 20)); }
+  Widget _buildMenuItem({required IconData icon, required String title, required VoidCallback onTap, Color? textColor, Color? iconColor, required bool isDark}) { return ListTile(onTap: onTap, leading: _buildIconBox(icon, isDark), title: Text(title, style: GoogleFonts.plusJakartaSans(color: textColor, fontWeight: FontWeight.w500)), trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white24 : Colors.grey.shade300)); }
+  Widget _buildDivider(bool isDark) { return Divider(height: 1, color: isDark ? Colors.white10 : Colors.grey.shade200, indent: 60, endIndent: 20); }
 }

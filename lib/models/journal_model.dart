@@ -28,7 +28,8 @@ class Journal {
   final String? musicLink;
   final String? voiceUrl;
   final bool isPinned;
-
+  final String? localImagePath; 
+  final String? localVoicePath;
 
   Journal({
     required this.id,
@@ -39,6 +40,8 @@ class Journal {
     this.musicLink,
     this.voiceUrl,
     this.isPinned = false,
+    this.localImagePath,
+    this.localVoicePath,
   });
 
 
@@ -53,6 +56,26 @@ class Journal {
       musicLink: json['music_link'],
       voiceUrl: json['voice_url'],
       isPinned: json['is_pinned'] == 1 || json['is_pinned'] == true,
+      localImagePath: null, 
+      localVoicePath: null,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'content': content,
+      'date': date,
+      'mood': {
+        'id': mood.id,
+        'name': mood.name,
+        'color_code': mood.colorCode,
+        'icon_name': mood.iconName,
+      },
+      'image_url': imageUrl,     // Pastikan key ini sama dengan yang dibaca fromJson
+      'voice_url': voiceUrl,
+      'music_link': musicLink,
+      'is_pinned': isPinned ? 1 : 0, // Simpan boolean sebagai int/bool tergantung API
+    };
   }
 }

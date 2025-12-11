@@ -1,8 +1,8 @@
-import 'package:diri_v1/main.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/constants.dart';
 import '../widgets/app_logo.dart';
+import '../main.dart'; // Akses AuthCheckWrapper
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,43 +19,34 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    
-    // Setup Animasi (Durasi 2 Detik)
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    );
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2));
 
-    // Efek Muncul (Fade In)
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
 
-    // Efek Membesar Dikit (Scale Up) biar dramatis
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
 
-    // Mulai Animasi
     _controller.forward();
-
-    // Timer pindah halaman
-    _navigateToHome();
+    _navigateToNext();
   }
 
-  void _navigateToHome() async {
-    // Tunggu 3 detik (biar logo sempat dinikmati)
+  void _navigateToNext() async {
+    // Tunggu animasi logo selesai (3 detik)
     await Future.delayed(const Duration(seconds: 3));
 
     if (mounted) {
-      // Pindah ke Penjaga Pintu (AuthCheckWrapper) dengan animasi Fade
+      // Langsung ke Pengecekan Status Login (AuthCheckWrapper)
+      // Kita tidak cek onboarding di sini lagi.
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (_, __, ___) => const AuthCheckWrapper(),
           transitionsBuilder: (_, animation, __, child) {
             return FadeTransition(opacity: animation, child: child);
           },
-          transitionDuration: const Duration(milliseconds: 800), // Transisi halus
+          transitionDuration: const Duration(milliseconds: 800),
         ),
       );
     }
@@ -69,7 +60,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    // Kita paksa background gelap biar glow-nya pop-up!
     return Scaffold(
       backgroundColor: AppColors.background, 
       body: Center(
@@ -80,32 +70,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // LOGO KITA YANG BERSINAR ✨
-                const AppLogo(
-                  size: 120, 
-                  style: LogoStyle.soul, 
-                  withText: false
-                ),
+                const AppLogo(size: 120, style: LogoStyle.soul, withText: false),
                 const SizedBox(height: 24),
-                // TEKS DIRI
-                Text(
-                  'DIRI',
-                  style: GoogleFonts.poppins(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 8, // Spasi lebar biar sinematik
-                    color: AppColors.primary,
-                  ),
-                ),
+                Text('DIRI', style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: 8, color: AppColors.primary)),
                 const SizedBox(height: 8),
-                Text(
-                  "Ruang amanmu.",
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: Colors.white54,
-                    letterSpacing: 2,
-                  ),
-                ),
+                Text("Ruang amanmu.", style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Colors.white54, letterSpacing: 2)),
               ],
             ),
           ),

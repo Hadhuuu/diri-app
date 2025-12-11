@@ -7,10 +7,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:connectivity_plus/connectivity_plus.dart'; 
 
 import '../models/journal_model.dart';
 import '../providers/journal_provider.dart';
 import '../utils/constants.dart';
+import '../widgets/journal_media_display.dart'; 
 
 class JournalEditorScreen extends StatefulWidget {
   final Mood mood; 
@@ -30,7 +32,10 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
   File? _selectedImage;
   String? _musicLink;
   
-  // Audio vars
+  // FLAGS UNTUK HAPUS
+  bool _isExistingImageDeleted = false;
+  bool _isExistingVoiceDeleted = false; // <--- BARU
+
   FlutterSoundRecorder? _recorder;
   bool _isRecorderInited = false;
   bool _isRecording = false;
@@ -79,7 +84,6 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
     }
   }
 
-  // --- LOGIKA BARU: PILIH SUMBER GAMBAR (KAMERA/GALERI) ---
   void _showImageSourcePicker() {
     final theme = Theme.of(context);
     final textColor = theme.colorScheme.onSurface;
@@ -114,19 +118,12 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
   Widget _buildSourceOption(IconData icon, String label, ImageSource source, Color color) {
     return InkWell(
       onTap: () {
-        Navigator.pop(context); // Tutup modal
-        _pickImage(source); // Ambil foto
+        Navigator.pop(context); 
+        _pickImage(source); 
       },
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: AppColors.primary, size: 30),
-          ),
+          Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: AppColors.primary, size: 30)),
           const SizedBox(height: 8),
           Text(label, style: GoogleFonts.plusJakartaSans(color: color)),
         ],
@@ -137,7 +134,10 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
   Future<void> _pickImage(ImageSource source) async {
     final XFile? pickedFile = await _picker.pickImage(source: source);
     if (pickedFile != null) {
-      setState(() => _selectedImage = File(pickedFile.path));
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+        _isExistingImageDeleted = false; 
+      });
     }
   }
 
@@ -155,6 +155,7 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
         _isRecording = false;
         _recordedFilePath = path;
         _hasVoiceNote = true;
+        _isExistingVoiceDeleted = false; // Kalau rekam baru, reset flag hapus lama
       });
     }
   }
@@ -202,7 +203,14 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
   }
 
   void _saveJournal() async {
-    if (_contentController.text.trim().isEmpty && _selectedImage == null && !_hasVoiceNote) {
+    bool hasContent = _contentController.text.trim().isNotEmpty;
+    bool hasNewImage = _selectedImage != null;
+    bool hasNewVoice = _hasVoiceNote;
+    bool hasExistingImage = (widget.existingJournal?.imageUrl != null) && !_isExistingImageDeleted;
+    bool hasExistingVoice = (widget.existingJournal?.voiceUrl != null) && !_isExistingVoiceDeleted;
+    
+    // Cek apakah kosong melompong (termasuk cek kalau media lama dihapus)
+    if (!hasContent && !hasNewImage && !hasNewVoice && !hasExistingImage && !hasExistingVoice) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Isi jurnal kosong.")));
       return;
     }
@@ -215,9 +223,17 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
     try {
       bool success;
       if (widget.existingJournal != null) {
+        // --- KIRIM STATUS DELETE IMAGE & VOICE ---
         success = await Provider.of<JournalProvider>(context, listen: false).updateJournal(
-          widget.existingJournal!.id, widget.mood.id, _contentController.text, _selectedDate,
-          image: _selectedImage, musicLink: _musicLink, voice: voiceFile 
+          widget.existingJournal!.id, 
+          widget.mood.id, 
+          _contentController.text, 
+          _selectedDate,
+          image: _selectedImage, 
+          musicLink: _musicLink, 
+          voice: voiceFile,
+          deleteImage: _isExistingImageDeleted, // HAPUS FOTO?
+          deleteVoice: _isExistingVoiceDeleted  // HAPUS SUARA?
         );
       } else {
         success = await Provider.of<JournalProvider>(context, listen: false).addJournal(
@@ -227,11 +243,10 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
       }
 
       if (success && mounted) {
-        // --- NAVIGASI FIX: Cukup POP sekali ---
         Navigator.pop(context); 
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Berhasil disimpan.")));
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal menyimpan ke server.")));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal menyimpan.")));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
@@ -247,6 +262,23 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final textColor = theme.colorScheme.onSurface;
     final subTextColor = theme.textTheme.bodyMedium?.color;
+
+    // --- LOGIKA GAMBAR ---
+    Widget? imagePreview;
+    
+    if (_selectedImage != null) {
+      imagePreview = Image.file(_selectedImage!, fit: BoxFit.cover);
+    } 
+    else if (widget.existingJournal != null && !_isExistingImageDeleted) {
+      if (widget.existingJournal!.imageUrl != null || widget.existingJournal!.localImagePath != null) {
+        imagePreview = JournalImageDisplay(
+          imageUrl: widget.existingJournal!.imageUrl,
+          localPath: widget.existingJournal!.localImagePath,
+          width: double.infinity,
+          height: 200, 
+        );
+      }
+    }
 
     return Scaffold(
       backgroundColor: Color.alphaBlend(moodColor.withOpacity(0.05), theme.scaffoldBackgroundColor),
@@ -299,14 +331,49 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
                   Row(children: [Container(width: 12, height: 12, decoration: BoxDecoration(color: moodColor, shape: BoxShape.circle)), const SizedBox(width: 8), Text("Aku merasa ${widget.mood.name}...", style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600, color: textColor))]),
                   const SizedBox(height: 24),
 
-                  if (_selectedImage != null) _buildMediaPreview(child: Image.file(_selectedImage!, fit: BoxFit.cover), onDelete: () => setState(() => _selectedImage = null))
-                  else if (widget.existingJournal?.imageUrl != null) _buildMediaPreview(child: Image.network(widget.existingJournal!.imageUrl!, fit: BoxFit.cover), onDelete: null),
+                  // --- PREVIEW GAMBAR + TOMBOL HAPUS ---
+                  if (imagePreview != null) 
+                    _buildMediaPreview(
+                      child: imagePreview, 
+                      onDelete: () {
+                        setState(() {
+                          if (_selectedImage != null) {
+                            _selectedImage = null; // Hapus yang baru
+                          } else {
+                            _isExistingImageDeleted = true; // Hapus yang lama
+                          }
+                        });
+                      }
+                    ),
 
+                  // --- VOICE NOTE BARU (REKAMAN) ---
                   if (_hasVoiceNote || _isRecording)
                     Container(
                       margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(color: _isRecording ? AppColors.error.withOpacity(0.1) : theme.cardTheme.color, borderRadius: BorderRadius.circular(16), border: Border.all(color: _isRecording ? AppColors.error : moodColor.withOpacity(0.5))),
                       child: Row(children: [Icon(Icons.mic_rounded, color: _isRecording ? AppColors.error : AppColors.primary), const SizedBox(width: 16), Expanded(child: Text(_isRecording ? "Sedang Merekam..." : "Suara Siap Disimpan", style: TextStyle(color: _isRecording ? AppColors.error : textColor, fontWeight: FontWeight.bold))), if (!_isRecording) IconButton(icon: Icon(Icons.delete_outline_rounded, color: subTextColor), onPressed: _deleteRecording)]),
+                    )
+                  // --- VOICE NOTE LAMA (EXISTING) ---
+                  else if (widget.existingJournal?.voiceUrl != null && !_isExistingVoiceDeleted)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: theme.cardTheme.color, borderRadius: BorderRadius.circular(16), border: Border.all(color: moodColor.withOpacity(0.5))),
+                      child: Row(
+                        children: [
+                          Icon(Icons.audiotrack_rounded, color: moodColor), 
+                          const SizedBox(width: 16), 
+                          Expanded(child: Text("Rekaman Tersimpan", style: TextStyle(color: textColor, fontWeight: FontWeight.bold))), 
+                          // TOMBOL HAPUS SUARA LAMA
+                          IconButton(
+                            icon: Icon(Icons.delete_outline_rounded, color: subTextColor), 
+                            onPressed: () {
+                              setState(() {
+                                _isExistingVoiceDeleted = true;
+                              });
+                            }
+                          )
+                        ]
+                      ),
                     ),
 
                   if (_musicLink != null && _musicLink!.isNotEmpty)
@@ -333,7 +400,7 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildToolbarButton(Icons.image_rounded, "Foto", _showImageSourcePicker, active: _selectedImage != null), // <-- PANGGIL FUNGSI PICKER BARU
+                  _buildToolbarButton(Icons.image_rounded, "Foto", _showImageSourcePicker, active: _selectedImage != null || (widget.existingJournal?.imageUrl != null && !_isExistingImageDeleted)),
                   _buildToolbarButton(Icons.music_note_rounded, "Musik", _addMusicLink, active: _musicLink != null),
                   InkWell(onTap: _toggleRecording, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: _isRecording ? AppColors.error : (_hasVoiceNote ? AppColors.primary : theme.scaffoldBackgroundColor), shape: BoxShape.circle, border: Border.all(color: isDark ? Colors.white24 : Colors.grey.shade300)), child: Icon(_isRecording ? Icons.stop_rounded : Icons.mic_rounded, color: (_isRecording || _hasVoiceNote) ? Colors.white : subTextColor, size: 24))),
                 ],
@@ -345,6 +412,40 @@ class _JournalEditorScreenState extends State<JournalEditorScreen> {
     );
   }
 
-  Widget _buildMediaPreview({required Widget child, VoidCallback? onDelete}) { /* ... Copy dari sebelumnya (sama) ... */ return Stack(children: [Container(margin: const EdgeInsets.only(bottom: 16), height: 200, width: double.infinity, decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)), child: ClipRRect(borderRadius: BorderRadius.circular(16), child: child)), if (onDelete != null) Positioned(top: 8, right: 8, child: GestureDetector(onTap: onDelete, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 20))))]); }
-  Widget _buildToolbarButton(IconData icon, String label, VoidCallback onTap, {bool active = false}) { /* ... Copy dari sebelumnya (sama) ... */ final color = active ? AppColors.primary : Theme.of(context).textTheme.bodyMedium?.color; return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: color, size: 24), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 10, color: color))])));}
+  Widget _buildMediaPreview({required Widget child, VoidCallback? onDelete}) { 
+    return Stack(
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 16), 
+          height: 200, 
+          width: double.infinity, 
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)), 
+          child: ClipRRect(borderRadius: BorderRadius.circular(16), child: child)
+        ), 
+        if (onDelete != null) 
+          Positioned(
+            top: 8, right: 8, 
+            child: GestureDetector(
+              onTap: onDelete, 
+              child: Container(
+                padding: const EdgeInsets.all(4), 
+                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), 
+                child: const Icon(Icons.close, color: Colors.white, size: 20)
+              )
+            )
+          )
+      ]
+    ); 
   }
+  
+  Widget _buildToolbarButton(IconData icon, String label, VoidCallback onTap, {bool active = false}) { 
+    final color = active ? AppColors.primary : Theme.of(context).textTheme.bodyMedium?.color; 
+    return InkWell(
+      onTap: onTap, borderRadius: BorderRadius.circular(12), 
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), 
+        child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: color, size: 24), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 10, color: color))])
+      )
+    ); 
+  }
+}

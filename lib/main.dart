@@ -12,8 +12,16 @@ import 'utils/constants.dart';
 import 'services/biometric_service.dart'; 
 import 'screens/lock_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/local_storage_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/onboarding_screen.dart';
 
-void main() {
+void main() async { // Ubah jadi async
+  WidgetsFlutterBinding.ensureInitialized(); // Wajib ada
+  
+  // Init Database Lokal
+  await LocalStorageService.init(); 
+
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light, 
@@ -122,19 +130,26 @@ class AuthCheckWrapper extends StatefulWidget {
 class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
   bool _isLoading = true;
   bool _isBiometricEnabled = false;
+  bool _hasSeenOnboarding = false; // Variable baru
 
   @override
   void initState() {
     super.initState();
-    _checkBiometric();
+    _checkStatus();
   }
 
-  void _checkBiometric() async {
-    // Import Service dulu di atas: import 'services/biometric_service.dart';
-    final isEnabled = await BiometricService().isBiometricEnabled();
+  void _checkStatus() async {
+    // 1. Cek Biometrik
+    final bioEnabled = await BiometricService().isBiometricEnabled();
+    
+    // 2. Cek Onboarding (SharedPrefs)
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingSeen = prefs.getBool('has_seen_onboarding') ?? false;
+
     if (mounted) {
       setState(() {
-        _isBiometricEnabled = isEnabled;
+        _isBiometricEnabled = bioEnabled;
+        _hasSeenOnboarding = onboardingSeen;
         _isLoading = false;
       });
     }
@@ -142,16 +157,26 @@ class _AuthCheckWrapperState extends State<AuthCheckWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.primary)));
     
-    // Kalau user belum login -> Login Screen
     final auth = Provider.of<AuthProvider>(context);
-    if (!auth.isLoggedIn) return const LoginScreen();
+    
+    // 1. Belum Login? -> Login Screen
+    if (!auth.isLoggedIn) {
+      return const LoginScreen();
+    }
 
-    // Kalau user login & Biometrik Aktif -> Lock Screen
-    if (_isBiometricEnabled) return const LockScreen(); // Import 'screens/lock_screen.dart'
+    // 2. Sudah Login, tapi BELUM pernah lihat onboarding? -> Onboarding Screen
+    if (!_hasSeenOnboarding) {
+      return const OnboardingScreen();
+    }
 
-    // Kalau user login & Biometrik Mati -> Masuk Langsung
+    // 3. Sudah Login & Sudah Onboarding, tapi Biometrik Aktif? -> Lock Screen
+    if (_isBiometricEnabled) {
+      return const LockScreen();
+    }
+
+    // 4. Lolos Semua -> Masuk Home
     return const MainWrapper();
   }
 }

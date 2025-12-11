@@ -32,7 +32,6 @@ dependencies:
     sdk: flutter
   http: ^1.1.0
   provider: ^6.0.5
-  shared_preferences: ^2.2.2
   google_fonts: ^6.1.0
   intl: ^0.18.1
   image_picker: ^1.0.7
@@ -45,7 +44,13 @@ dependencies:
   fl_chart: ^0.66.2
   local_auth: ^2.1.8
   flutter_staggered_animations: ^1.1.1
-
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  connectivity_plus: 4.0.2
+  internet_connection_checker: ^1.0.0+1
+  cached_network_image: ^3.4.1
+  showcaseview: ^3.0.0
+  shared_preferences: ^2.3.2
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
